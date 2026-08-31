@@ -1,6 +1,6 @@
 // api/extract.js
 // Vercel serverless function for the whole simplified pipeline -- one
-// request, one response. Parses the multipart form (pdf file +
+// request, one response. Parses the multipart form (PDF or image +
 // pageFrom/pageTo/sectionTitle) and runs the direct OCR -> per-page Sol
 // arrangement -> deterministic encode pipeline.
 
@@ -22,16 +22,18 @@ export default async function handler(req, res) {
     var contentType = req.headers['content-type'] || '';
     var { fields, files } = parseMultipart(buffer, contentType);
 
+    var upload = files.document || files.pdf; // pdf retained for older clients
     var result = await runPipeline({
       pageFrom: fields.pageFrom,
       pageTo: fields.pageTo,
       sectionTitle: fields.sectionTitle,
-      fileName: files.pdf ? files.pdf.filename : undefined,
-      pdfBuffer: files.pdf ? files.pdf.data : undefined
+      fileName: upload ? upload.filename : undefined,
+      mimeType: upload ? upload.contentType : undefined,
+      inputBuffer: upload ? upload.data : undefined
     });
 
     res.status(200).json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Something went wrong processing that PDF.' });
+    res.status(500).json({ error: err.message || 'Something went wrong processing that document.' });
   }
 }
