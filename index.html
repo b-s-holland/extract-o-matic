@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Extract-O-Matic — Retrieval Indexing / Translation Layer</title>
+<link rel="icon" type="image/png" href="assets/lever-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* palette lifted directly from the title strip's swatch row, not invented fresh */
+    --ink: #090909;
+    --panel: #E9E9E9;
+    --page-bg: #F8AD71;
+
+    --brown-deep: #4B0B09;
+    --red: #8D0D08;
+    --rust: #A9351A;
+    --orange: #C45C2B;
+    --tan: #C77B4D;
+    --sand: #C9996F;
+
+    --blue-grey: #9FA8B9;
+    --steel: #7D818A;
+    --charcoal: #534e4f;
+
+    --lamp-off: var(--brown-deep);
+    --lamp-on: var(--orange);
+
+    --phosphor: #6fffb0;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; overflow-x:hidden; }
+  body{
+    margin:0;
+    overflow-x:hidden;
+    background: var(--page-bg);
+    color: var(--ink);
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 500;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,h2,h3,h4{ font-family: 'Montserrat', sans-serif; font-weight: 900; text-transform: uppercase; color: var(--ink); margin: 0 0 0.5em 0; line-height: 1.2; }
+  p{ margin: 0 0 1em 0; }
+  p:last-child{ margin-bottom:0; }
+  hr.rule{ border:none; border-top: 2px solid var(--ink); margin: 1.2em 0; }
+  button{ font: inherit; }
+
+  /* =========================================================
+     TITLE PLATE — Extract-O-Matic (unchanged)
+     ========================================================= */
+  .titleplate-wrap{ max-width: 1200px; margin: 40px auto 0; padding: 0 24px; }
+  .titleplate{
+    display: grid;
+    grid-template-rows: repeat(2, auto) auto;
+    grid-template-columns: repeat(4, 1fr);
+    background-color: #2196F3;
+    width: 100%;
+    border: 4px solid var(--ink);
+  }
+  .titleplate > div{
+    background: var(--panel);
+    text-align: center;
+    border: 1.5px solid var(--ink);
+    display: flex;
+    justify-content: center;
+    flex-direction: row;
+    align-items: center;
+  }
+  .tp-item1{
+    grid-column: 1 / 5;
+    letter-spacing: 15px;
+    font-size: 7.5ch;
+    line-height: 100px;
+    padding: 20px;
+    font-weight: 900;
+  }
+  @media (max-width: 900px){
+    .tp-item1{ font-size: clamp(28px, 8vw, 80px); line-height: 1.15; padding: 20px; letter-spacing: 4px; }
+  }
+  .tp-item2{
+    grid-column: 1 / 3;
+    padding-left: 14px;
+    line-height: 16px;
+    font-size: 15px;
+    letter-spacing: 3px;
+    font-weight: 700;
+    min-height: 44px;
+  }
+  .tp-item3{
+    grid-column: 3 / 5;
+    padding-left: 14px;
+    line-height: 16px;
+    letter-spacing: 3px;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 44px;
+  }
+  .tp-item4{
+    grid-column: 1 / 5;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    padding: 18px 40px;
+    overflow:hidden;
+    height: 56px;
+  }
+  .tp-item4 > span{ display:block; width:100%; height:100%; }
+  .tp-item4 span:nth-child(1){ background:var(--ink); }
+  .tp-item4 span:nth-child(2){ background:var(--brown-deep); }
+  .tp-item4 span:nth-child(3){ background:var(--red); }
+  .tp-item4 span:nth-child(4){ background:var(--rust); }
+  .tp-item4 span:nth-child(5){ background:var(--orange); }
+  .tp-item4 span:nth-child(6){ background:var(--tan); }
+  .tp-item4 span:nth-child(7){ background:var(--tan); }
+  .tp-item4 span:nth-child(8){ background:var(--sand); }
+  .tp-item4 span:nth-child(9){ background:var(--blue-grey); }
+  .tp-item4 span:nth-child(10){ background:var(--steel); }
+
+  /* =========================================================
+     MACHINE LAYOUT — compact control bank + large result workspace
+     ========================================================= */
+  .machine-wrap{ max-width: 1200px; margin: 30px auto 80px; padding: 0 24px; }
+
+  /* Machine-edge treatment adapted from the supplied pure-CSS cassette-player reference. */
+  .machine{
+    position: relative;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.45) 0 5px, transparent 9px calc(100% - 10px), rgba(0,0,0,.18) calc(100% - 5px)),
+      var(--panel);
+    border: 3px solid var(--ink);
+    border-radius: 7px;
+    box-shadow:
+      0 0 0 3px #7d786e,
+      0 0 0 5px var(--ink),
+      inset 4px 0 0 rgba(255,255,255,.48),
+      inset -5px 0 0 rgba(0,0,0,.12),
+      8px 10px 0 rgba(0,0,0,.18);
+    display: grid;
+    grid-template-columns: minmax(240px, 30%) 1fr;
+    align-items: stretch;
+    isolation: isolate;
+  }
+  .machine::before{
+    content:"";
+    position:absolute;
+    z-index:-1;
+    left:-17px; top:15%; bottom:15%; width:15px;
+    border:2px solid var(--ink);
+    border-right:none;
+    border-radius:5px 0 0 5px;
+    background:
+      repeating-linear-gradient(90deg, #26232b 0 2px, #77727e 2px 4px, #403b47 4px 6px),
+      linear-gradient(90deg, #8e8992, #1e1b22);
+    box-shadow: inset 3px 0 3px rgba(255,255,255,.18), 2px 4px 4px rgba(0,0,0,.2);
+    clip-path: polygon(35% 2%,100% 0,100% 100%,35% 98%,0 93%,0 7%);
+  }
+  .machine::after{
+    content:"";
+    position:absolute;
+    right:-14px; top:10%; width:12px; height:24%;
+    border:2px solid var(--ink);
+    border-left:none;
+    border-radius:0 4px 4px 0;
+    background:
+      linear-gradient(90deg, #c7b18b 0 18%, #8b765c 19% 28%, #d9c7a7 29% 50%, #7e6a52 51% 64%, #c1a77c 65%);
+    box-shadow: inset -3px 0 4px rgba(0,0,0,.22), 2px 3px 4px rgba(0,0,0,.22);
+    clip-path: polygon(0 0,100% 4%,100% 82%,0 100%);
+  }
+  @media (max-width: 860px){ .machine{ grid-template-columns: 1fr; } }
+
+  /* ---------- control bank (left) ---------- */
+  .control-bank{
+    position: relative;
+    padding: 22px 22px 24px;
+    background: linear-gradient(90deg, #f4f4f2 0, var(--panel) 12px 96%, #c5c4c0 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  h3.section-label{
+    font-size: 0.72rem; letter-spacing: 0.12em; color: var(--ink);
+    margin: 0; padding-bottom: 6px; border-bottom: 2px solid var(--ink);
+  }
+
+  .field{ margin: 0; }
+  .field label{ display:block; font-family:'JetBrains Mono', monospace; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--charcoal); margin-bottom: 6px; font-weight:700; }
+  .field .hint{ font-family:'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--charcoal); margin-top: 5px; text-transform:none; letter-spacing:0; line-height:1.4; }
+  .field .hint.error{ color: var(--red); font-weight:700; }
+
+  .file-drop{
+    border: 2px dashed var(--ink); border-radius: 2px; padding: 10px 10px;
+    background: #fff; cursor:pointer; text-align:center; transition: background .15s ease;
+  }
+  .file-drop:hover, .file-drop.drag-over{ background: rgba(196,92,43,0.08); }
+  .file-drop input[type="file"]{ display:none; }
+  .file-drop .fd-label{ font-size: 0.7rem; color: var(--ink); text-transform:none; font-weight:600; line-height:1.3; }
+  .file-drop .fd-name{ font-family:'JetBrains Mono', monospace; font-size: 0.64rem; color: var(--rust); margin-top: 5px; word-break: break-all; text-transform:none; }
+
+  input.text-input{
+    width:100%; background: #fff; border: 2px solid var(--ink);
+    border-radius: 2px; color: var(--ink); font-family:'JetBrains Mono', monospace; font-size: 0.78rem; padding: 8px 9px;
+    text-transform: none; font-weight: 500;
+  }
+  input.text-input::placeholder{ color: rgba(9,9,9,0.35); }
+
+  /* ---------- twin mixer faders (salvaged from analog-audio.zip) ---------- */
+  .fader-field{ margin:0; }
+  .fader-field + .fader-field{ margin-top: 10px; }
+  .fader-display{
+    width:100%;
+    background: linear-gradient(180deg, #12160f, #0a0d08);
+    border: 2px solid var(--ink);
+    border-radius: 2px;
+    box-shadow: inset 0 3px 6px rgba(0,0,0,.6), inset 0 0 0 2px rgba(0,0,0,.3);
+    color: var(--phosphor);
+    text-shadow: 0 0 6px rgba(111,255,176,.55);
+    font-family: 'JetBrains Mono', monospace; font-weight:700;
+    font-size: 1.15rem; letter-spacing: .18em; text-align: center;
+    padding: 6px 4px;
+  }
+  .fader-display.invalid{ color: #ff8a7a; text-shadow: 0 0 6px rgba(255,90,60,.55); }
+  .fader-display::-webkit-inner-spin-button, .fader-display::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+  .fader-display{ -moz-appearance: textfield; }
+
+  .fader-track-row{ display:flex; align-items:center; gap:8px; margin-top:6px; }
+  input.fader-track{
+    -webkit-appearance:none; appearance:none;
+    flex:1; height: 14px;
+    background: linear-gradient(180deg, #cbbfae, #b8a98f);
+    border: 2px solid var(--ink);
+    border-radius: 3px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.35);
+  }
+  input.fader-track::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width: 22px; height: 26px; margin-top:-8px;
+    background: linear-gradient(90deg, var(--charcoal), var(--steel) 45%, var(--charcoal));
+    border: 1.5px solid var(--ink);
+    border-radius: 3px;
+    box-shadow: 1px 2px 0 rgba(0,0,0,.35);
+    cursor: pointer;
+  }
+  input.fader-track::-moz-range-track{
+    height: 14px; background: linear-gradient(180deg, #cbbfae, #b8a98f);
+    border: 2px solid var(--ink); border-radius: 3px; box-shadow: inset 0 2px 4px rgba(0,0,0,.35);
+  }
+  input.fader-track::-moz-range-thumb{
+    width: 20px; height: 26px;
+    background: linear-gradient(90deg, var(--charcoal), var(--steel) 45%, var(--charcoal));
+    border: 1.5px solid var(--ink); border-radius: 3px; cursor:pointer;
+  }
+
+  /* ---------- lever (salvaged from slot-machine-spinner.zip). Back down
+     to one now that the pipeline runs in a single pass -- there's no
+     longer a meaningful pause point between two separate AI stages the
+     way there was when OCR's raw ledger was something the next stage
+     might drop content from. ---------- */
+  .lever-unit{ display:flex; flex-direction:column; align-items:center; gap:8px; margin-top: auto; padding-top: 10px; }
+  .lever-status{
+    font-family:'JetBrains Mono', monospace; font-size: 0.66rem; font-weight:700; letter-spacing: .12em;
+    color: var(--charcoal); text-transform: uppercase; text-align:center;
+  }
+  .lever-status.busy{ color: var(--rust); }
+  .lever-status.complete{ color: #2f6f3d; }
+
+  .lever-btn{
+    background: none; border: none; padding: 6px 10px 2px; cursor: pointer;
+    display:flex; flex-direction:column; align-items:center; gap: 6px;
+  }
+  .lever-btn:disabled{ cursor:not-allowed; opacity:.5; }
+  .lever-btn:focus-visible .lever-housing{ outline: 3px solid var(--rust); outline-offset: 2px; }
+
+  .lever-housing{
+    position: relative;
+    width: 78px; height: 92px;
+    background: linear-gradient(180deg, var(--steel), var(--charcoal) 60%, #3a3535);
+    border: 2px solid var(--ink);
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.08), 2px 3px 0 rgba(0,0,0,.3);
+    overflow: visible;
+  }
+  .lever-arm{
+    position: absolute;
+    left: 50%; bottom: 10px;
+    width: 10px; height: 46px;
+    margin-left: -5px;
+    transform-origin: 50% 100%;
+    transform: rotate(0deg);
+    transition: transform .28s cubic-bezier(.34,1.2,.64,1);
+  }
+  .lever-btn:not(:disabled):hover .lever-arm{ transform: rotate(-6deg); }
+  .lever-btn.pulled .lever-arm{ transform: rotate(38deg); transition-duration: .38s; }
+
+  .lever-stem{
+    position:absolute; left:0; bottom:0; width:10px; height:100%;
+    border-radius: 5px;
+    background: linear-gradient(90deg, #6b6f74, #d8dadd 45%, #6b6f74);
+    box-shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  .lever-ball{
+    position:absolute; left:50%; top:-13px; width:24px; height:24px;
+    margin-left:-12px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e0655a, var(--red) 55%, var(--brown-deep) 100%);
+    border: 1.5px solid var(--brown-deep);
+    box-shadow: 1px 2px 3px rgba(0,0,0,.4);
+  }
+  .lever-label{
+    font-weight: 900; font-size: 0.72rem; letter-spacing: .1em; color: var(--ink);
+  }
+
+  /* ---------- result workspace (right) — the dominant surface ---------- */
+  .result-workspace{
+    position: relative;
+    padding: 22px 26px 26px;
+    border-left: 3px solid var(--ink);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.42) 0 4px, transparent 8px calc(100% - 8px), rgba(0,0,0,.12) calc(100% - 3px)),
+      #d9d5c9;
+    box-shadow: inset 4px 0 0 rgba(255,255,255,.24), inset -4px 0 0 rgba(0,0,0,.08);
+    display: flex; flex-direction: column;
+    min-width: 0;
+  }
+  @media (max-width: 860px){
+    .control-bank, .result-workspace{ padding: 20px; }
+    .result-workspace{ border-left:none; border-top: 3px solid var(--ink); }
+  }
+
+  .result-header{
+    display:flex; align-items:center; justify-content:space-between; gap: 12px;
+    flex-wrap: wrap;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 10px; margin-bottom: 14px;
+  }
+  .subtab-row{ display:flex; gap: 0; border: 2px solid var(--ink); width: max-content; }
+  .subtab{ font-family:'JetBrains Mono', monospace; font-size:0.7rem; text-transform:uppercase; letter-spacing:.06em; padding: 7px 14px; color: var(--charcoal); cursor:pointer; background: var(--panel); font-weight:700; border:none; }
+  .subtab.active{ color: var(--phosphor); background: var(--ink); }
+  .subtab:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .header-controls{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+  .copy-btn{
+    font-family:'JetBrains Mono', monospace; font-size:0.68rem; text-transform:uppercase; letter-spacing:.06em;
+    padding: 8px 12px; color: var(--ink); cursor:pointer; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 2px; font-weight:700;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .copy-btn:hover{ background: #dcd8cd; }
+  .copy-btn.copied{ color: #2f6f3d; border-color:#2f6f3d; }
+
+  .status-pill{
+    font-family:'JetBrains Mono', monospace; font-size: 0.68rem; font-weight:700; letter-spacing:.08em;
+    text-transform: uppercase; background:none; border: 2px solid transparent; cursor: default;
+    padding: 6px 10px; border-radius: 2px; display:none; align-items:center; gap:7px;
+  }
+  .status-pill.show{ display:inline-flex; }
+  .status-pill[data-clickable="true"]{ cursor:pointer; }
+  .status-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .status-chevron{ display:none; font-size:0.6rem; transition: transform .15s ease; }
+  .status-pill[data-clickable="true"] .status-chevron{ display:inline-block; }
+  .status-pill[aria-expanded="true"] .status-chevron{ transform: rotate(180deg); }
+  .status-pill.verified{ color:#2f6f3d; border-color:#2f6f3d; }
+  .status-pill.verified .status-dot{ background:#2f6f3d; }
+  .status-pill.review{ color:var(--red); border-color:var(--red); }
+  .status-pill.review .status-dot{ background:var(--red); box-shadow:0 0 6px rgba(141,13,8,.6); }
+  .status-pill.partial{ color:var(--charcoal); border-color:var(--charcoal); }
+  .status-pill.partial .status-dot{ background:var(--steel); }
+  .status-pill.caution{ color:#7a5410; border-color:#7a5410; }
+  .status-pill.caution .status-dot{ background:#c38a23; }
+
+  .exception-panel{ display:none; margin: 0 0 16px; border: 2px solid var(--ink); background: var(--panel); }
+  .exception-panel.show{ display:block; }
+  .exception-row{ display:flex; gap:10px; padding: 9px 12px; border-bottom: 1px solid rgba(9,9,9,.15); font-family:'JetBrains Mono', monospace; font-size: 0.72rem; }
+  .exception-row:last-child{ border-bottom:none; }
+  .exception-row .ex-flag{ color: var(--red); font-weight:700; flex-shrink:0; }
+  .exception-row .ex-pending{ color: var(--charcoal); font-weight:700; flex-shrink:0; }
+  .exception-row .ex-warn{ color:#7a5410; font-weight:700; flex-shrink:0; }
+  .exception-row .ex-label{ font-weight:700; }
+  .exception-row .ex-note{ color: var(--charcoal); }
+
+  .empty-state{
+    font-family:'JetBrains Mono', monospace; font-size:0.78rem; color: var(--charcoal);
+    padding: 30px 4px; text-align:left;
+  }
+
+  /* Indeterminate "document being scanned" activity indicator -- shown
+     only while the call is in flight. Not a progress bar -- one call now
+     covers the whole pipeline, so there's no meaningful sub-stage
+     progress to report. */
+  .loading-block{ position: relative; z-index: 1; }
+  .loading-text{ color: #a8b39b; margin: 0 0 16px; }
+  .scan-loader{ width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 10px; }
+  .scan-loader span{
+    display: block; height: 2px; width: 0;
+    background: var(--phosphor);
+    box-shadow: 0 0 4px rgba(111,255,176,.5);
+    animation: scan-line 2.4s linear infinite;
+  }
+  .scan-loader span:nth-child(1){ animation-delay: 0s; }
+  .scan-loader span:nth-child(2){ animation-delay: 0.15s; }
+  .scan-loader span:nth-child(3){ animation-delay: 0.30s; }
+  .scan-loader span:nth-child(4){ animation-delay: 0.45s; }
+  .scan-loader span:nth-child(5){ animation-delay: 0.60s; }
+  .scan-loader span:nth-child(6){ animation-delay: 0.75s; }
+  .scan-loader span:nth-child(7){ animation-delay: 0.90s; }
+  .scan-loader span:nth-child(8){ animation-delay: 1.05s; }
+  @keyframes scan-line{
+    0%{ width: 0; opacity: 0.25; }
+    20%{ width: 100%; opacity: 1; }
+    65%{ width: 100%; opacity: 0.45; }
+    100%{ width: 100%; opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .scan-loader span{ animation: none; width: 100%; opacity: 0.6; }
+  }
+
+  .output-view{ display:none; flex: 1 1 auto; min-height: 0; }
+  .output-view.active{ display:block; }
+  .display{
+    background: linear-gradient(180deg, #171b16, #0e110e);
+    color: #a8b39b;
+    border: 2px solid var(--ink);
+    box-shadow:
+      inset 0 0 18px rgba(0,0,0,.65),
+      inset 0 0 0 2px #31352e,
+      0 0 0 3px #7d786e,
+      0 0 0 5px var(--ink),
+      5px 6px 0 rgba(0,0,0,.12);
+    padding: 18px;
+    font-size: 0.78rem;
+    height: 60vh;
+    min-height: 320px;
+    overflow:auto;
+    position: relative;
+  }
+  .display::after{
+    content: "";
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 3px 4px);
+  }
+  pre.output-json{ margin:0; white-space: pre-wrap; word-break: break-word; font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; line-height:1.6; position:relative; z-index:1; }
+  .output-preview{ font-size: 0.86rem; font-family:'JetBrains Mono', monospace; font-weight: 400; position:relative; z-index:1; }
+  .output-preview p, .output-preview li, .output-preview td{ font-weight: 400; }
+  .output-preview h2, .output-preview h3, .output-preview h4{ color: #d8b9a0; font-size: 0.9rem; margin: 1em 0 0.4em; text-transform:uppercase; letter-spacing:.06em; }
+  .output-preview h2:first-child, .output-preview h3:first-child, .output-preview h4:first-child{ margin-top:0; }
+  .output-preview table{ width:100%; border-collapse: collapse; margin: 0.6em 0 1em; font-size: 0.76rem; }
+  .output-preview th, .output-preview td{ border: 1px solid #3a4038; padding: 5px 8px; text-align:left; }
+  .output-preview th{ color: #d8b9a0; font-weight:700; }
+  .output-preview .empty-note{ font-family:'JetBrains Mono', monospace; font-size:0.78rem; color:#7c8a76; }
+
+  /* ---------- page map: rendered page + SVG wireframe overlay ---------- */
+  .pagemap-page{ margin-bottom: 20px; }
+  .pagemap-page:last-child{ margin-bottom: 0; }
+  .pagemap-label{ font-size:0.75em; opacity:0.7; text-transform:uppercase; letter-spacing:.06em; margin: 0 0 8px; }
+  .pagemap-imgwrap{ position: relative; width: 100%; background:#000; line-height:0; }
+  .pagemap-imgwrap img{ width:100%; height:auto; display:block; opacity:0.92; }
+  .pagemap-imgwrap svg{ position:absolute; inset:0; width:100%; height:100%; }
+  .pagemap-region rect{ fill-opacity:0.16; stroke-width:0.35; vector-effect: non-scaling-stroke; }
+  .pagemap-region text{ font-family:'JetBrains Mono', monospace; fill:#fff; paint-order: stroke; stroke: rgba(0,0,0,.75); stroke-width: 2px; }
+  .pagemap-region.suspicious rect{ fill:#c25c56 !important; stroke:#8d0d08 !important; fill-opacity:.28; stroke-width:.7; }
+  .pagemap-region.suspicious text{ fill:#ffd9d6; }
+  .pagemap-legend{ display:flex; flex-wrap:wrap; gap: 12px; margin-top: 10px; font-family:'JetBrains Mono', monospace; font-size:0.68rem; color:#a8b39b; }
+  .pagemap-legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .pagemap-legend i{ width:10px; height:10px; display:inline-block; border-radius:2px; }
+
+  .site-footer{ max-width: 1200px; margin: 0 auto; padding: 10px 24px 70px; text-align:center; }
+  .footer-note{ font-family:'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--charcoal); text-transform:none; }
+</style>
+</head>
+<body>
+
+  <div class="titleplate-wrap">
+    <!-- Nostalgia by Micaela Frakes-Zieger, adapted -->
+    <!-- https://dribbble.com/shots/5937048-Nostalgia -->
+    <div class="titleplate">
+      <div class="tp-item1">EXTRACT-O-MATIC</div>
+      <div class="tp-item2">RETRIEVAL INDEXING</div>
+      <div class="tp-item3">TRANSLATION LAYER</div>
+      <div class="tp-item4"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <div class="machine-wrap">
+    <div class="machine">
+
+      <!-- CONTROL BANK: compact, dense, setup only -->
+      <div class="control-bank">
+        <h3 class="section-label">Setup</h3>
+
+        <div class="field">
+          <label for="pdfInput">PDF</label>
+          <div class="file-drop" id="fileDrop">
+            <input type="file" id="pdfInput" accept="application/pdf">
+            <div class="fd-label" id="fdLabel">Click or drag a PDF in</div>
+            <div class="fd-name" id="fdName"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Page range (optional)</label>
+          <div class="fader-field">
+            <input class="fader-display" type="text" inputmode="numeric" id="pageFrom" placeholder="FROM" aria-label="From page">
+            <div class="fader-track-row">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--charcoal);">F</span>
+              <input class="fader-track" type="range" min="1" max="200" value="1" id="pageFromTrack" aria-label="From page fader">
+            </div>
+          </div>
+          <div class="fader-field">
+            <input class="fader-display" type="text" inputmode="numeric" id="pageTo" placeholder="TO" aria-label="To page">
+            <div class="fader-track-row">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--charcoal);">T</span>
+              <input class="fader-track" type="range" min="1" max="200" value="1" id="pageToTrack" aria-label="To page fader">
+            </div>
+          </div>
+          <div class="hint" id="pageRangeHint">Leave blank for the whole document.</div>
+        </div>
+
+        <div class="field">
+          <label for="sectionTitle">Section title</label>
+          <input class="text-input" type="text" id="sectionTitle" placeholder="e.g. Operating Review">
+          <div class="hint">Optional context hint for Sol's structural arrangement pass.</div>
+        </div>
+
+        <div class="lever-unit">
+          <div class="lever-status" id="leverStatus">Select a PDF first</div>
+          <button type="button" class="lever-btn" id="extractBtn" disabled aria-label="Run the pipeline on the selected pages">
+            <span class="lever-housing">
+              <span class="lever-arm">
+                <span class="lever-stem"></span>
+                <span class="lever-ball"></span>
+              </span>
+            </span>
+            <span class="lever-label">EXTRACT</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- RESULT WORKSPACE: the dominant surface -->
+      <div class="result-workspace">
+        <div class="result-header">
+          <div class="subtab-row" role="tablist">
+            <button type="button" class="subtab active" data-view="evidence" role="tab" aria-selected="true" disabled>Evidence</button>
+            <button type="button" class="subtab" data-view="ocr" role="tab" aria-selected="false" disabled>OCR</button>
+            <button type="button" class="subtab" data-view="structure" role="tab" aria-selected="false" disabled>Sol Arrangement</button>
+            <button type="button" class="subtab" data-view="structured" role="tab" aria-selected="false" disabled>Structured</button>
+            <button type="button" class="subtab" data-view="rendered" role="tab" aria-selected="false" disabled>Rendered</button>
+          </div>
+          <div class="header-controls">
+            <button type="button" class="copy-btn" id="copyBtn" aria-label="Copy the active tab's content">
+              <span id="copyBtnLabel">Copy</span>
+            </button>
+            <button type="button" class="status-pill" id="statusPill" aria-expanded="false">
+              <span class="status-dot"></span><span id="statusText"></span><span class="status-chevron" aria-hidden="true">&#9662;</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="exception-panel" id="exceptionPanel"></div>
+
+        <div class="empty-state" id="emptyState">No result yet. Set up the source on the left and pull EXTRACT.</div>
+
+        <div id="resultViews" style="display:none;">
+          <div class="output-view active" id="viewEvidence">
+            <div class="display" id="evidenceDisplay">
+              <div class="loading-block" id="loadingBlock" style="display:none;">
+                <p class="loading-text" id="loadingText"></p>
+                <div class="scan-loader" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+              <div id="evidencePages"></div>
+            </div>
+          </div>
+          <div class="output-view" id="viewOcr">
+            <div class="display"><pre class="output-json" id="ocrJson"></pre></div>
+          </div>
+          <div class="output-view" id="viewStructure">
+            <div class="display"><pre class="output-json" id="structureJson"></pre></div>
+          </div>
+          <div class="output-view" id="viewStructured">
+            <div class="display"><pre class="output-json" id="structuredJson"></pre></div>
+          </div>
+          <div class="output-view" id="viewRendered">
+            <div class="display output-preview" id="renderedHtml"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p class="footer-note">RI Extract-O-Matic — canonical page image → Google Vision OCR (text + geometry + retained block hierarchy) → Sol arranges existing OCR references against the original page → deterministic exact-text ENCODE. No mandatory page-map stage. Checks run as a mandatory part of every pass; only exceptions are surfaced.</p>
+  </footer>
+
+  <script>
+    (function(){
+      // ---------- element refs ----------
+      var fileDrop = document.getElementById('fileDrop');
+      var pdfInput = document.getElementById('pdfInput');
+      var fdName = document.getElementById('fdName');
+      var pageFrom = document.getElementById('pageFrom');
+      var pageTo = document.getElementById('pageTo');
+      var pageFromTrack = document.getElementById('pageFromTrack');
+      var pageToTrack = document.getElementById('pageToTrack');
+      var pageRangeHint = document.getElementById('pageRangeHint');
+      var sectionTitle = document.getElementById('sectionTitle');
+      var extractBtn = document.getElementById('extractBtn');
+      var leverStatus = document.getElementById('leverStatus');
+      var selectedFile = null;
+      var busy = false;
+
+      function escapeHtml(str){
+        return String(str).replace(/[&<>"']/g, function(c){
+          return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+        });
+      }
+
+      // ---------- source: PDF ----------
+      fileDrop.addEventListener('click', function(){ pdfInput.click(); });
+      fileDrop.addEventListener('dragover', function(e){ e.preventDefault(); fileDrop.classList.add('drag-over'); });
+      fileDrop.addEventListener('dragleave', function(){ fileDrop.classList.remove('drag-over'); });
+      fileDrop.addEventListener('drop', function(e){
+        e.preventDefault();
+        fileDrop.classList.remove('drag-over');
+        if(e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+      });
+      pdfInput.addEventListener('change', function(){
+        if(pdfInput.files && pdfInput.files[0]) setFile(pdfInput.files[0]);
+      });
+      function setFile(file){
+        if(file.type !== 'application/pdf'){
+          fdName.textContent = 'That\u2019s not a PDF \u2014 try again.';
+          return;
+        }
+        selectedFile = file;
+        fdName.textContent = file.name;
+        updateReadiness();
+      }
+
+      // ---------- twin faders ----------
+      function padDigits(n){
+        var s = String(n);
+        return s.length >= 3 ? s : ('000'.slice(s.length)) + s;
+      }
+      function wireFader(display, track){
+        track.addEventListener('input', function(){
+          display.value = track.value;
+          updateReadiness();
+        });
+        display.addEventListener('input', function(){
+          var digits = display.value.replace(/[^0-9]/g, '');
+          if(digits !== display.value) display.value = digits;
+          var n = parseInt(digits, 10);
+          if(n){
+            if(n > parseInt(track.max, 10)) track.max = String(n);
+            track.value = String(n);
+          }
+          updateReadiness();
+        });
+        display.addEventListener('blur', function(){
+          var n = parseInt(display.value, 10);
+          if(n) display.value = padDigits(n);
+        });
+        display.addEventListener('focus', function(){
+          var n = parseInt(display.value, 10);
+          if(n) display.value = String(n);
+        });
+      }
+      wireFader(pageFrom, pageFromTrack);
+      wireFader(pageTo, pageToTrack);
+
+      function parsePageRange(){
+        var fromRaw = pageFrom.value.trim();
+        var toRaw = pageTo.value.trim();
+        if(!fromRaw && !toRaw) return { mode: 'all' };
+        var from = parseInt(fromRaw, 10);
+        var to = parseInt(toRaw, 10);
+        if(!from || !to || from < 1 || to < 1 || to < from) return { mode: 'invalid' };
+        return { mode: 'range', from: from, to: to };
+      }
+
+      function updateRangeFields(parsed){
+        var invalid = parsed.mode === 'invalid';
+        pageFrom.classList.toggle('invalid', invalid);
+        pageTo.classList.toggle('invalid', invalid);
+        pageRangeHint.classList.toggle('error', invalid);
+        if(parsed.mode === 'all'){
+          pageRangeHint.textContent = 'Leave blank for the whole document.';
+        } else if(parsed.mode === 'invalid'){
+          pageRangeHint.textContent = 'End page must be on or after the start page, or leave both blank.';
+        } else {
+          pageRangeHint.textContent = (parsed.to - parsed.from + 1) + ' page' + (parsed.to - parsed.from === 0 ? '' : 's') + ' selected.';
+        }
+      }
+
+      function updateReadiness(){
+        if(busy) return;
+        var parsed = parsePageRange();
+        updateRangeFields(parsed);
+
+        var ready = !!selectedFile && parsed.mode !== 'invalid';
+        extractBtn.disabled = !ready;
+        leverStatus.className = 'lever-status';
+        leverStatus.textContent = !selectedFile ? 'Select a PDF first'
+          : parsed.mode === 'invalid' ? 'Fix page range'
+          : 'Ready';
+      }
+
+      pageFrom.addEventListener('input', updateReadiness);
+      pageTo.addEventListener('input', updateReadiness);
+
+      // ---------- result workspace: subtabs ----------
+      var VIEW_IDS = { evidence: 'viewEvidence', ocr: 'viewOcr', structure: 'viewStructure', structured: 'viewStructured', rendered: 'viewRendered' };
+      function activateTab(key){
+        document.querySelectorAll('.subtab').forEach(function(t){
+          var isMatch = t.getAttribute('data-view') === key;
+          t.classList.toggle('active', isMatch);
+          t.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+        });
+        document.querySelectorAll('.output-view').forEach(function(v){ v.classList.remove('active'); });
+        document.getElementById(VIEW_IDS[key]).classList.add('active');
+      }
+      document.querySelectorAll('.subtab').forEach(function(tab){
+        tab.addEventListener('click', function(){
+          if(tab.disabled) return;
+          activateTab(tab.getAttribute('data-view'));
+        });
+      });
+      function enableTabs(){
+        document.querySelectorAll('.subtab').forEach(function(t){ t.disabled = false; });
+      }
+
+      // ---------- copy active tab's content ----------
+      var copyBtn = document.getElementById('copyBtn');
+      var copyBtnLabel = document.getElementById('copyBtnLabel');
+      var ocrJson = document.getElementById('ocrJson');
+      var structureJson = document.getElementById('structureJson');
+      var structuredJson = document.getElementById('structuredJson');
+      var renderedHtml = document.getElementById('renderedHtml');
+      var evidencePages = document.getElementById('evidencePages');
+
+      function getActiveTabText(){
+        var activeTab = document.querySelector('.subtab.active');
+        var key = activeTab ? activeTab.getAttribute('data-view') : 'evidence';
+        if(key === 'ocr') return ocrJson.textContent;
+        if(key === 'structure') return structureJson.textContent;
+        if(key === 'structured') return structuredJson.textContent;
+        if(key === 'rendered') return renderedHtml.innerText || renderedHtml.textContent;
+        return evidencePages.innerText || evidencePages.textContent;
+      }
+
+      function flashCopied(success){
+        copyBtn.classList.toggle('copied', success);
+        copyBtnLabel.textContent = success ? 'Copied!' : 'Couldn\u2019t copy';
+        setTimeout(function(){
+          copyBtn.classList.remove('copied');
+          copyBtnLabel.textContent = 'Copy';
+        }, 1500);
+      }
+
+      copyBtn.addEventListener('click', function(){
+        var text = getActiveTabText();
+        if(!text || !text.trim()) return;
+
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(function(){ flashCopied(true); }).catch(function(){ flashCopied(false); });
+          return;
+        }
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
+        document.body.removeChild(ta);
+        flashCopied(ok);
+      });
+
+      // ---------- deterministic QC -> quiet status + actionable exceptions ----------
+      var CHECK_LABELS = {
+        structure: 'Sol structural pass',
+        completeness: 'Source fragment accounting',
+        typing: 'Semantic typing coverage',
+        references: 'Reference integrity',
+        sourceText: 'Source-text fidelity',
+        ocrConfidence: 'Low-confidence OCR evidence',
+        tables: 'Table shape'
+      };
+      var FLAG_NOTES = {
+        structure: 'One or more per-page Sol arrangement calls failed. OCR evidence was preserved and deterministic fallback emitted those fragments as plain paragraphs. Inspect Sol Arrangement for the page-level diagnostic.',
+        completeness: 'A source OCR fragment was not emitted or explicitly recorded as an intentional omission. This indicates an encoding bug and should not be ignored.',
+        references: 'Sol returned an invalid, duplicate, or otherwise inconsistent fragment reference. Inspect encodingIssues in Structured.',
+        sourceText: 'A source-controlled output string does not exactly match the OCR refs used to build it. This should be impossible outside an explicit deterministic normalisation, so treat it as an encoder bug.',
+        tables: 'A table row length does not match its column count. Check the Sol Arrangement and encoded table.'
+      };
+      var WARN_NOTES = {
+        typing: 'Some OCR content was preserved by deterministic fallback because Sol did not place/type it. Look for "fallback": true blocks (shown with 🔧 in Rendered).',
+        ocrConfidence: 'Vision returned one or more OCR fragments below the confidence threshold. They are highlighted in red in Evidence; this is evidence to inspect, not an automatic extraction failure.'
+      };
+
+      var statusPill = document.getElementById('statusPill');
+      var statusText = document.getElementById('statusText');
+      var exceptionPanel = document.getElementById('exceptionPanel');
+
+      function checkStatus(value){ return value && typeof value === 'object' ? value.status : value; }
+      function checkCount(value){ return value && typeof value === 'object' ? (value.count || 0) : 0; }
+
+      function renderStatus(checks){
+        var flagged = [];
+        var warnings = [];
+        Object.keys(CHECK_LABELS).forEach(function(key){
+          var result = checkStatus(checks[key]);
+          if(result === 'flag') flagged.push(key);
+          else if(result === 'warn') warnings.push(key);
+        });
+
+        statusPill.classList.remove('verified','review','partial','caution');
+        statusPill.classList.add('show');
+        exceptionPanel.classList.remove('show');
+        statusPill.setAttribute('aria-expanded','false');
+
+        var rows = flagged.map(function(key){
+          var count = checkCount(checks[key]);
+          return '<div class="exception-row"><span class="ex-flag">FLAG</span><span class="ex-label">' + escapeHtml(CHECK_LABELS[key]) + (count ? ' (' + count + ')' : '') + ':</span><span class="ex-note">' + escapeHtml(FLAG_NOTES[key] || 'Flagged.') + '</span></div>';
+        }).concat(warnings.map(function(key){
+          var count = checkCount(checks[key]);
+          return '<div class="exception-row"><span class="ex-warn">NOTE</span><span class="ex-label">' + escapeHtml(CHECK_LABELS[key]) + (count ? ' (' + count + ')' : '') + ':</span><span class="ex-note">' + escapeHtml(WARN_NOTES[key] || 'Review if relevant.') + '</span></div>';
+        })).join('');
+
+        if(flagged.length){
+          statusPill.classList.add('review');
+          statusText.textContent = 'Review required — ' + flagged.length + ' flag' + (flagged.length === 1 ? '' : 's') + (warnings.length ? ', ' + warnings.length + ' note' + (warnings.length === 1 ? '' : 's') : '');
+          statusPill.setAttribute('data-clickable','true');
+          exceptionPanel.innerHTML = rows;
+        } else if(warnings.length){
+          statusPill.classList.add('caution');
+          statusText.textContent = 'Verified with ' + warnings.length + ' note' + (warnings.length === 1 ? '' : 's');
+          statusPill.setAttribute('data-clickable','true');
+          exceptionPanel.innerHTML = rows;
+        } else {
+          statusPill.classList.add('verified');
+          statusText.textContent = 'Verified';
+          statusPill.removeAttribute('data-clickable');
+          exceptionPanel.innerHTML = '';
+        }
+      }
+
+      statusPill.addEventListener('click', function(){
+        if(statusPill.getAttribute('data-clickable') !== 'true') return;
+        var expanded = exceptionPanel.classList.toggle('show');
+        statusPill.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      });
+
+      // ---------- evidence rendering: original page + OCR geometry ----------
+      function pct(v){ return (Number(v) || 0) * 100; }
+      function renderEvidence(ocrPages, pageImagesByPage){
+        var threshold = 0.90;
+        var suspiciousTotal = 0;
+        var html = (ocrPages || []).map(function(op){
+          var img = pageImagesByPage[op.page];
+          var blockBoxes = (op.blocks || []).map(function(b){
+            var q = b.bbox || {};
+            return '<g class="pagemap-region"><rect x="' + pct(q.x) + '" y="' + pct(q.y) + '" width="' + pct(q.w) + '" height="' + pct(q.h) + '" fill="none" stroke="#C77B4D" stroke-dasharray="1.2,1"></rect><text x="' + (pct(q.x)+0.5) + '" y="' + (pct(q.y)+2) + '" font-size="1.5">' + escapeHtml(b.id) + '</text></g>';
+          }).join('');
+          var fragmentBoxes = (op.fragments || []).map(function(f){
+            var q = f.bbox || {};
+            var markerOnly = /^[\s•\u2022\u25CF\u25AA\u25E6\-*|.·]+$/.test(f.text || '');
+            var suspicious = !markerOnly && Number.isFinite(Number(f.confidence)) && Number(f.confidence) < threshold;
+            if(suspicious) suspiciousTotal++;
+            var title = f.id + (Number.isFinite(Number(f.confidence)) ? ' · confidence ' + Number(f.confidence).toFixed(3) : '') + ' · ' + (f.text || '').replace(/\s+/g,' ').slice(0,120);
+            return '<g class="pagemap-region' + (suspicious ? ' suspicious' : '') + '"><title>' + escapeHtml(title) + '</title><rect x="' + pct(q.x) + '" y="' + pct(q.y) + '" width="' + pct(q.w) + '" height="' + pct(q.h) + '" fill="#9FA8B9" stroke="#534e4f"></rect><text x="' + (pct(q.x)+0.4) + '" y="' + (pct(q.y)+1.7) + '" font-size="1.25">' + escapeHtml(f.id) + '</text></g>';
+          }).join('');
+          return '<div class="pagemap-page"><p class="pagemap-label">Page ' + op.page + ' — OCR evidence</p><div class="pagemap-imgwrap">' +
+            (img ? '<img src="' + img.dataUrl + '" alt="Page ' + op.page + '">' : '') +
+            '<svg viewBox="0 0 100 100" preserveAspectRatio="none">' + blockBoxes + fragmentBoxes + '</svg></div></div>';
+        }).join('');
+        evidencePages.innerHTML = html + '<div class="pagemap-legend"><span><i style="background:#9FA8B9;"></i>OCR paragraph</span><span><i style="background:#C77B4D;"></i>Vision block (dashed)</span><span><i style="background:#c25c56;"></i>Below 0.90 confidence' + (suspiciousTotal ? ' (' + suspiciousTotal + ')' : '') + '</span></div>';
+      }
+
+      // ---------- run ----------
+      var emptyState = document.getElementById('emptyState');
+      var resultViews = document.getElementById('resultViews');
+      var loadingBlock = document.getElementById('loadingBlock');
+      var loadingText = document.getElementById('loadingText');
+
+      function friendlyError(err){
+        if(location.protocol === 'file:'){
+          return 'This app needs the local dev server running \u2014 it can\u2019t call the API when index.html is opened directly from disk. From the ri-shell folder, run "node local-server.mjs" and open http://localhost:3000 instead.';
+        }
+        return err.message;
+      }
+
+      function runExtract(){
+        var parsed = parsePageRange();
+        if(!selectedFile || parsed.mode === 'invalid' || busy) return;
+
+        busy = true;
+        extractBtn.disabled = true;
+        extractBtn.classList.add('pulled');
+        leverStatus.className = 'lever-status busy';
+        leverStatus.textContent = 'Processing\u2026';
+
+        emptyState.style.display = 'none';
+        resultViews.style.display = 'block';
+        activateTab('evidence');
+        evidencePages.innerHTML = '';
+        loadingBlock.style.display = 'block';
+        loadingText.textContent = parsed.mode === 'range'
+          ? ('Reading pages ' + parsed.from + '\u2013' + parsed.to + '\u2026')
+          : 'Reading the whole document\u2026';
+        statusPill.classList.remove('show');
+        exceptionPanel.classList.remove('show');
+
+        var formData = new FormData();
+        formData.append('pdf', selectedFile);
+        if(parsed.mode === 'range'){
+          formData.append('pageFrom', parsed.from);
+          formData.append('pageTo', parsed.to);
+        }
+        if(sectionTitle.value.trim()) formData.append('sectionTitle', sectionTitle.value.trim());
+
+        fetch('/api/extract', { method: 'POST', body: formData })
+          .then(function(res){
+            return res.json().then(function(data){
+              if(!res.ok) throw new Error(data.error || 'Something went wrong.');
+              return data;
+            });
+          })
+          .then(function(data){
+            loadingBlock.style.display = 'none';
+
+            var pageImagesByPage = {};
+            (data.pageImages || []).forEach(function(p){ pageImagesByPage[p.page] = p; });
+            renderEvidence(data.ocr.pages, pageImagesByPage);
+
+            ocrJson.textContent = JSON.stringify(data.ocr, null, 2);
+            structureJson.textContent = JSON.stringify(data.structure, null, 2);
+            structuredJson.textContent = JSON.stringify(data.structured, null, 2);
+            renderedHtml.innerHTML = data.previewHtml || '<p class="empty-note">Nothing rendered.</p>';
+            renderStatus(data.checks || {});
+            enableTabs();
+
+            extractBtn.classList.remove('pulled');
+            leverStatus.className = 'lever-status complete';
+            leverStatus.textContent = 'Complete';
+            setTimeout(function(){
+              busy = false;
+              updateReadiness();
+            }, 1600);
+          })
+          .catch(function(err){
+            loadingBlock.style.display = 'none';
+            evidencePages.innerHTML = '<p class="empty-note">Failed: ' + escapeHtml(friendlyError(err)) + '</p>';
+            extractBtn.classList.remove('pulled');
+            busy = false;
+            updateReadiness();
+          });
+      }
+
+      extractBtn.addEventListener('click', runExtract);
+
+      updateReadiness();
+    })();
+  </script>
+
+</body>
+</html>
