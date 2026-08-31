@@ -490,15 +490,15 @@
         <h3 class="section-label">Setup</h3>
 
         <div class="field">
-          <label for="pdfInput">PDF</label>
+          <label for="documentInput">DOCUMENT</label>
           <div class="file-drop" id="fileDrop">
-            <input type="file" id="pdfInput" accept="application/pdf">
-            <div class="fd-label" id="fdLabel">Click or drag a PDF in</div>
+            <input type="file" id="documentInput" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp">
+            <div class="fd-label" id="fdLabel">Click or drag a PDF or image in</div>
             <div class="fd-name" id="fdName"></div>
           </div>
         </div>
 
-        <div class="field">
+        <div class="field" id="pageRangeField">
           <label>Page range (optional)</label>
           <div class="fader-field">
             <input class="fader-display" type="text" inputmode="numeric" id="pageFrom" placeholder="FROM" aria-label="From page">
@@ -524,8 +524,8 @@
         </div>
 
         <div class="lever-unit">
-          <div class="lever-status" id="leverStatus">Select a PDF first</div>
-          <button type="button" class="lever-btn" id="extractBtn" disabled aria-label="Run the pipeline on the selected pages">
+          <div class="lever-status" id="leverStatus">Select a document first</div>
+          <button type="button" class="lever-btn" id="extractBtn" disabled aria-label="Run the pipeline on the selected document">
             <span class="lever-housing">
               <span class="lever-arm">
                 <span class="lever-stem"></span>
@@ -599,8 +599,9 @@
     (function(){
       // ---------- element refs ----------
       var fileDrop = document.getElementById('fileDrop');
-      var pdfInput = document.getElementById('pdfInput');
+      var documentInput = document.getElementById('documentInput');
       var fdName = document.getElementById('fdName');
+      var pageRangeField = document.getElementById('pageRangeField');
       var pageFrom = document.getElementById('pageFrom');
       var pageTo = document.getElementById('pageTo');
       var pageFromTrack = document.getElementById('pageFromTrack');
@@ -618,8 +619,8 @@
         });
       }
 
-      // ---------- source: PDF ----------
-      fileDrop.addEventListener('click', function(){ pdfInput.click(); });
+      // ---------- source: PDF or image -> one canonical page-image pipeline ----------
+      fileDrop.addEventListener('click', function(){ documentInput.click(); });
       fileDrop.addEventListener('dragover', function(e){ e.preventDefault(); fileDrop.classList.add('drag-over'); });
       fileDrop.addEventListener('dragleave', function(){ fileDrop.classList.remove('drag-over'); });
       fileDrop.addEventListener('drop', function(e){
@@ -627,17 +628,37 @@
         fileDrop.classList.remove('drag-over');
         if(e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
       });
-      pdfInput.addEventListener('change', function(){
-        if(pdfInput.files && pdfInput.files[0]) setFile(pdfInput.files[0]);
+      documentInput.addEventListener('change', function(){
+        if(documentInput.files && documentInput.files[0]) setFile(documentInput.files[0]);
       });
+      function fileKind(file){
+        var type = String(file.type || '').toLowerCase();
+        var name = String(file.name || '').toLowerCase();
+        if(type === 'application/pdf' || /\.pdf$/.test(name)) return 'pdf';
+        if(type === 'image/png' || type === 'image/jpeg' || type === 'image/webp' || /\.(png|jpe?g|webp)$/.test(name)) return 'image';
+        return null;
+      }
       function setFile(file){
-        if(file.type !== 'application/pdf'){
-          fdName.textContent = 'That\u2019s not a PDF \u2014 try again.';
+        var kind = fileKind(file);
+        if(!kind){
+          selectedFile = null;
+          fdName.textContent = 'Use a PDF, PNG, JPG/JPEG, or WebP file.';
+          updateSourceControls();
+          updateReadiness();
           return;
         }
         selectedFile = file;
         fdName.textContent = file.name;
+        updateSourceControls();
         updateReadiness();
+      }
+      function updateSourceControls(){
+        var isImage = selectedFile && fileKind(selectedFile) === 'image';
+        pageRangeField.style.display = isImage ? 'none' : '';
+        pageFrom.disabled = !!isImage;
+        pageTo.disabled = !!isImage;
+        pageFromTrack.disabled = !!isImage;
+        pageToTrack.disabled = !!isImage;
       }
 
       // ---------- twin faders ----------
@@ -673,6 +694,7 @@
       wireFader(pageTo, pageToTrack);
 
       function parsePageRange(){
+        if(selectedFile && fileKind(selectedFile) === 'image') return { mode: 'image', from: 1, to: 1 };
         var fromRaw = pageFrom.value.trim();
         var toRaw = pageTo.value.trim();
         if(!fromRaw && !toRaw) return { mode: 'all' };
@@ -687,7 +709,9 @@
         pageFrom.classList.toggle('invalid', invalid);
         pageTo.classList.toggle('invalid', invalid);
         pageRangeHint.classList.toggle('error', invalid);
-        if(parsed.mode === 'all'){
+        if(parsed.mode === 'image'){
+          pageRangeHint.textContent = 'Single image input uses page 1.';
+        } else if(parsed.mode === 'all'){
           pageRangeHint.textContent = 'Leave blank for the whole document.';
         } else if(parsed.mode === 'invalid'){
           pageRangeHint.textContent = 'End page must be on or after the start page, or leave both blank.';
@@ -701,10 +725,10 @@
         var parsed = parsePageRange();
         updateRangeFields(parsed);
 
-        var ready = !!selectedFile && parsed.mode !== 'invalid';
+        var ready = !!selectedFile && !!fileKind(selectedFile) && parsed.mode !== 'invalid';
         extractBtn.disabled = !ready;
         leverStatus.className = 'lever-status';
-        leverStatus.textContent = !selectedFile ? 'Select a PDF first'
+        leverStatus.textContent = !selectedFile ? 'Select a document first'
           : parsed.mode === 'invalid' ? 'Fix page range'
           : 'Ready';
       }
@@ -910,14 +934,16 @@
         activateTab('evidence');
         evidencePages.innerHTML = '';
         loadingBlock.style.display = 'block';
-        loadingText.textContent = parsed.mode === 'range'
-          ? ('Reading pages ' + parsed.from + '\u2013' + parsed.to + '\u2026')
-          : 'Reading the whole document\u2026';
+        loadingText.textContent = parsed.mode === 'image'
+          ? 'Reading image as page 1\u2026'
+          : parsed.mode === 'range'
+            ? ('Reading pages ' + parsed.from + '\u2013' + parsed.to + '\u2026')
+            : 'Reading the whole document\u2026';
         statusPill.classList.remove('show');
         exceptionPanel.classList.remove('show');
 
         var formData = new FormData();
-        formData.append('pdf', selectedFile);
+        formData.append('document', selectedFile);
         if(parsed.mode === 'range'){
           formData.append('pageFrom', parsed.from);
           formData.append('pageTo', parsed.to);
