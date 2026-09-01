@@ -520,7 +520,7 @@
         <div class="field">
           <label for="sectionTitle">Section title</label>
           <input class="text-input" type="text" id="sectionTitle" placeholder="e.g. Operating Review">
-          <div class="hint">Optional context hint for Sol's structural arrangement pass.</div>
+          <div class="hint">Optional context hint for the reconstruction prompt.</div>
         </div>
 
         <div class="lever-unit">
@@ -537,53 +537,40 @@
         </div>
       </div>
 
-      <!-- RESULT WORKSPACE: the dominant surface -->
+      <!-- RESULT WORKSPACE: same machine shell, GOAT-style outputs -->
       <div class="result-workspace">
         <div class="result-header">
           <div class="subtab-row" role="tablist">
-            <button type="button" class="subtab active" data-view="evidence" role="tab" aria-selected="true" disabled>Evidence</button>
-            <button type="button" class="subtab" data-view="ocr" role="tab" aria-selected="false" disabled>OCR</button>
-            <button type="button" class="subtab" data-view="structure" role="tab" aria-selected="false" disabled>Sol Arrangement</button>
-            <button type="button" class="subtab" data-view="structured" role="tab" aria-selected="false" disabled>Structured</button>
+            <button type="button" class="subtab active" data-view="plain" role="tab" aria-selected="true" disabled>Plain Text</button>
             <button type="button" class="subtab" data-view="rendered" role="tab" aria-selected="false" disabled>Rendered</button>
+            <button type="button" class="subtab" data-view="code" role="tab" aria-selected="false" disabled>Code</button>
           </div>
           <div class="header-controls">
             <button type="button" class="copy-btn" id="copyBtn" aria-label="Copy the active tab's content">
               <span id="copyBtnLabel">Copy</span>
             </button>
-            <button type="button" class="status-pill" id="statusPill" aria-expanded="false">
-              <span class="status-dot"></span><span id="statusText"></span><span class="status-chevron" aria-hidden="true">&#9662;</span>
-            </button>
           </div>
         </div>
-
-        <div class="exception-panel" id="exceptionPanel"></div>
 
         <div class="empty-state" id="emptyState">No result yet. Set up the source on the left and pull EXTRACT.</div>
 
         <div id="resultViews" style="display:none;">
-          <div class="output-view active" id="viewEvidence">
-            <div class="display" id="evidenceDisplay">
+          <div class="output-view active" id="viewPlain">
+            <div class="display">
               <div class="loading-block" id="loadingBlock" style="display:none;">
                 <p class="loading-text" id="loadingText"></p>
                 <div class="scan-loader" aria-hidden="true">
                   <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
                 </div>
               </div>
-              <div id="evidencePages"></div>
+              <pre class="output-json" id="plainTextOutput"></pre>
             </div>
-          </div>
-          <div class="output-view" id="viewOcr">
-            <div class="display"><pre class="output-json" id="ocrJson"></pre></div>
-          </div>
-          <div class="output-view" id="viewStructure">
-            <div class="display"><pre class="output-json" id="structureJson"></pre></div>
-          </div>
-          <div class="output-view" id="viewStructured">
-            <div class="display"><pre class="output-json" id="structuredJson"></pre></div>
           </div>
           <div class="output-view" id="viewRendered">
             <div class="display output-preview" id="renderedHtml"></div>
+          </div>
+          <div class="output-view" id="viewCode">
+            <div class="display"><pre class="output-json" id="codeOutput"></pre></div>
           </div>
         </div>
       </div>
@@ -592,12 +579,11 @@
   </div>
 
   <footer class="site-footer">
-    <p class="footer-note">RI Extract-O-Matic — canonical page image → Google Vision OCR (text + geometry + retained block hierarchy) → Sol arranges existing OCR references against the original page → deterministic exact-text ENCODE. No mandatory page-map stage. Checks run as a mandatory part of every pass; only exceptions are surfaced.</p>
+    <p class="footer-note">RI Extract-O-Matic — rendered page image → direct multimodal reconstruction → Plain Text / Rendered / Code.</p>
   </footer>
 
   <script>
     (function(){
-      // ---------- element refs ----------
       var fileDrop = document.getElementById('fileDrop');
       var documentInput = document.getElementById('documentInput');
       var fdName = document.getElementById('fdName');
@@ -619,7 +605,14 @@
         });
       }
 
-      // ---------- source: PDF or image -> one canonical page-image pipeline ----------
+      function fileKind(file){
+        var type = String(file.type || '').toLowerCase();
+        var name = String(file.name || '').toLowerCase();
+        if(type === 'application/pdf' || /\.pdf$/.test(name)) return 'pdf';
+        if(type === 'image/png' || type === 'image/jpeg' || type === 'image/webp' || /\.(png|jpe?g|webp)$/.test(name)) return 'image';
+        return null;
+      }
+
       fileDrop.addEventListener('click', function(){ documentInput.click(); });
       fileDrop.addEventListener('dragover', function(e){ e.preventDefault(); fileDrop.classList.add('drag-over'); });
       fileDrop.addEventListener('dragleave', function(){ fileDrop.classList.remove('drag-over'); });
@@ -631,27 +624,19 @@
       documentInput.addEventListener('change', function(){
         if(documentInput.files && documentInput.files[0]) setFile(documentInput.files[0]);
       });
-      function fileKind(file){
-        var type = String(file.type || '').toLowerCase();
-        var name = String(file.name || '').toLowerCase();
-        if(type === 'application/pdf' || /\.pdf$/.test(name)) return 'pdf';
-        if(type === 'image/png' || type === 'image/jpeg' || type === 'image/webp' || /\.(png|jpe?g|webp)$/.test(name)) return 'image';
-        return null;
-      }
+
       function setFile(file){
-        var kind = fileKind(file);
-        if(!kind){
+        if(!fileKind(file)){
           selectedFile = null;
           fdName.textContent = 'Use a PDF, PNG, JPG/JPEG, or WebP file.';
-          updateSourceControls();
-          updateReadiness();
-          return;
+        } else {
+          selectedFile = file;
+          fdName.textContent = file.name;
         }
-        selectedFile = file;
-        fdName.textContent = file.name;
         updateSourceControls();
         updateReadiness();
       }
+
       function updateSourceControls(){
         var isImage = selectedFile && fileKind(selectedFile) === 'image';
         pageRangeField.style.display = isImage ? 'none' : '';
@@ -661,47 +646,32 @@
         pageToTrack.disabled = !!isImage;
       }
 
-      // ---------- twin faders ----------
       function padDigits(n){
         var s = String(n);
         return s.length >= 3 ? s : ('000'.slice(s.length)) + s;
       }
       function wireFader(display, track){
-        track.addEventListener('input', function(){
-          display.value = track.value;
-          updateReadiness();
-        });
+        track.addEventListener('input', function(){ display.value = track.value; updateReadiness(); });
         display.addEventListener('input', function(){
           var digits = display.value.replace(/[^0-9]/g, '');
           if(digits !== display.value) display.value = digits;
           var n = parseInt(digits, 10);
-          if(n){
-            if(n > parseInt(track.max, 10)) track.max = String(n);
-            track.value = String(n);
-          }
+          if(n){ if(n > parseInt(track.max, 10)) track.max = String(n); track.value = String(n); }
           updateReadiness();
         });
-        display.addEventListener('blur', function(){
-          var n = parseInt(display.value, 10);
-          if(n) display.value = padDigits(n);
-        });
-        display.addEventListener('focus', function(){
-          var n = parseInt(display.value, 10);
-          if(n) display.value = String(n);
-        });
+        display.addEventListener('blur', function(){ var n = parseInt(display.value, 10); if(n) display.value = padDigits(n); });
+        display.addEventListener('focus', function(){ var n = parseInt(display.value, 10); if(n) display.value = String(n); });
       }
       wireFader(pageFrom, pageFromTrack);
       wireFader(pageTo, pageToTrack);
 
       function parsePageRange(){
-        if(selectedFile && fileKind(selectedFile) === 'image') return { mode: 'image', from: 1, to: 1 };
-        var fromRaw = pageFrom.value.trim();
-        var toRaw = pageTo.value.trim();
-        if(!fromRaw && !toRaw) return { mode: 'all' };
-        var from = parseInt(fromRaw, 10);
-        var to = parseInt(toRaw, 10);
-        if(!from || !to || from < 1 || to < 1 || to < from) return { mode: 'invalid' };
-        return { mode: 'range', from: from, to: to };
+        if(selectedFile && fileKind(selectedFile) === 'image') return { mode:'image', from:1, to:1 };
+        var fromRaw = pageFrom.value.trim(), toRaw = pageTo.value.trim();
+        if(!fromRaw && !toRaw) return { mode:'all' };
+        var from = parseInt(fromRaw,10), to = parseInt(toRaw,10);
+        if(!from || !to || from < 1 || to < 1 || to < from) return { mode:'invalid' };
+        return { mode:'range', from:from, to:to };
       }
 
       function updateRangeFields(parsed){
@@ -709,287 +679,125 @@
         pageFrom.classList.toggle('invalid', invalid);
         pageTo.classList.toggle('invalid', invalid);
         pageRangeHint.classList.toggle('error', invalid);
-        if(parsed.mode === 'image'){
-          pageRangeHint.textContent = 'Single image input uses page 1.';
-        } else if(parsed.mode === 'all'){
-          pageRangeHint.textContent = 'Leave blank for the whole document.';
-        } else if(parsed.mode === 'invalid'){
-          pageRangeHint.textContent = 'End page must be on or after the start page, or leave both blank.';
-        } else {
-          pageRangeHint.textContent = (parsed.to - parsed.from + 1) + ' page' + (parsed.to - parsed.from === 0 ? '' : 's') + ' selected.';
-        }
+        if(parsed.mode === 'all') pageRangeHint.textContent = 'Leave blank for the whole document.';
+        else if(parsed.mode === 'invalid') pageRangeHint.textContent = 'End page must be on or after the start page, or leave both blank.';
+        else if(parsed.mode === 'range') pageRangeHint.textContent = (parsed.to - parsed.from + 1) + ' page' + (parsed.to === parsed.from ? '' : 's') + ' selected.';
       }
 
       function updateReadiness(){
         if(busy) return;
         var parsed = parsePageRange();
         updateRangeFields(parsed);
-
         var ready = !!selectedFile && !!fileKind(selectedFile) && parsed.mode !== 'invalid';
         extractBtn.disabled = !ready;
         leverStatus.className = 'lever-status';
-        leverStatus.textContent = !selectedFile ? 'Select a document first'
-          : parsed.mode === 'invalid' ? 'Fix page range'
-          : 'Ready';
+        leverStatus.textContent = !selectedFile ? 'Select a document first' : parsed.mode === 'invalid' ? 'Fix page range' : 'Ready';
       }
 
-      pageFrom.addEventListener('input', updateReadiness);
-      pageTo.addEventListener('input', updateReadiness);
-
-      // ---------- result workspace: subtabs ----------
-      var VIEW_IDS = { evidence: 'viewEvidence', ocr: 'viewOcr', structure: 'viewStructure', structured: 'viewStructured', rendered: 'viewRendered' };
+      var VIEW_IDS = { plain:'viewPlain', rendered:'viewRendered', code:'viewCode' };
       function activateTab(key){
         document.querySelectorAll('.subtab').forEach(function(t){
-          var isMatch = t.getAttribute('data-view') === key;
-          t.classList.toggle('active', isMatch);
-          t.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+          var match = t.getAttribute('data-view') === key;
+          t.classList.toggle('active', match);
+          t.setAttribute('aria-selected', match ? 'true' : 'false');
         });
         document.querySelectorAll('.output-view').forEach(function(v){ v.classList.remove('active'); });
         document.getElementById(VIEW_IDS[key]).classList.add('active');
       }
       document.querySelectorAll('.subtab').forEach(function(tab){
-        tab.addEventListener('click', function(){
-          if(tab.disabled) return;
-          activateTab(tab.getAttribute('data-view'));
-        });
+        tab.addEventListener('click', function(){ if(!tab.disabled) activateTab(tab.getAttribute('data-view')); });
       });
-      function enableTabs(){
-        document.querySelectorAll('.subtab').forEach(function(t){ t.disabled = false; });
-      }
+      function enableTabs(){ document.querySelectorAll('.subtab').forEach(function(t){ t.disabled = false; }); }
 
-      // ---------- copy active tab's content ----------
+      var plainTextOutput = document.getElementById('plainTextOutput');
+      var renderedHtml = document.getElementById('renderedHtml');
+      var codeOutput = document.getElementById('codeOutput');
       var copyBtn = document.getElementById('copyBtn');
       var copyBtnLabel = document.getElementById('copyBtnLabel');
-      var ocrJson = document.getElementById('ocrJson');
-      var structureJson = document.getElementById('structureJson');
-      var structuredJson = document.getElementById('structuredJson');
-      var renderedHtml = document.getElementById('renderedHtml');
-      var evidencePages = document.getElementById('evidencePages');
 
       function getActiveTabText(){
-        var activeTab = document.querySelector('.subtab.active');
-        var key = activeTab ? activeTab.getAttribute('data-view') : 'evidence';
-        if(key === 'ocr') return ocrJson.textContent;
-        if(key === 'structure') return structureJson.textContent;
-        if(key === 'structured') return structuredJson.textContent;
+        var active = document.querySelector('.subtab.active');
+        var key = active ? active.getAttribute('data-view') : 'plain';
+        if(key === 'code') return codeOutput.textContent;
         if(key === 'rendered') return renderedHtml.innerText || renderedHtml.textContent;
-        return evidencePages.innerText || evidencePages.textContent;
+        return plainTextOutput.textContent;
       }
-
-      function flashCopied(success){
-        copyBtn.classList.toggle('copied', success);
-        copyBtnLabel.textContent = success ? 'Copied!' : 'Couldn\u2019t copy';
-        setTimeout(function(){
-          copyBtn.classList.remove('copied');
-          copyBtnLabel.textContent = 'Copy';
-        }, 1500);
+      function flashCopied(ok){
+        copyBtn.classList.toggle('copied', ok);
+        copyBtnLabel.textContent = ok ? 'Copied!' : 'Couldn\u2019t copy';
+        setTimeout(function(){ copyBtn.classList.remove('copied'); copyBtnLabel.textContent = 'Copy'; }, 1500);
       }
-
       copyBtn.addEventListener('click', function(){
         var text = getActiveTabText();
         if(!text || !text.trim()) return;
-
         if(navigator.clipboard && navigator.clipboard.writeText){
           navigator.clipboard.writeText(text).then(function(){ flashCopied(true); }).catch(function(){ flashCopied(false); });
           return;
         }
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        var ok = false;
-        try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
-        document.body.removeChild(ta);
-        flashCopied(ok);
+        var ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        var ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+        document.body.removeChild(ta); flashCopied(ok);
       });
 
-      // ---------- deterministic QC -> quiet status + actionable exceptions ----------
-      var CHECK_LABELS = {
-        structure: 'Sol structural pass',
-        completeness: 'Source fragment accounting',
-        typing: 'Semantic typing coverage',
-        references: 'Reference integrity',
-        sourceText: 'Source-text fidelity',
-        ocrConfidence: 'Low-confidence OCR evidence',
-        tables: 'Table shape'
-      };
-      var FLAG_NOTES = {
-        structure: 'One or more per-page Sol arrangement calls failed. OCR evidence was preserved and deterministic fallback emitted those fragments as plain paragraphs. Inspect Sol Arrangement for the page-level diagnostic.',
-        completeness: 'A source OCR fragment was not emitted or explicitly recorded as an intentional omission. This indicates an encoding bug and should not be ignored.',
-        references: 'Sol returned an invalid, duplicate, or otherwise inconsistent fragment reference. Inspect encodingIssues in Structured.',
-        sourceText: 'A source-controlled output string does not exactly match the OCR refs used to build it. This should be impossible outside an explicit deterministic normalisation, so treat it as an encoder bug.',
-        tables: 'A table row length does not match its column count. Check the Sol Arrangement and encoded table.'
-      };
-      var WARN_NOTES = {
-        typing: 'Some OCR content was preserved by deterministic fallback because Sol did not place/type it. Look for "fallback": true blocks (shown with 🔧 in Rendered).',
-        ocrConfidence: 'Vision returned one or more OCR fragments below the confidence threshold. They are highlighted in red in Evidence; this is evidence to inspect, not an automatic extraction failure.'
-      };
-
-      var statusPill = document.getElementById('statusPill');
-      var statusText = document.getElementById('statusText');
-      var exceptionPanel = document.getElementById('exceptionPanel');
-
-      function checkStatus(value){ return value && typeof value === 'object' ? value.status : value; }
-      function checkCount(value){ return value && typeof value === 'object' ? (value.count || 0) : 0; }
-
-      function renderStatus(checks){
-        var flagged = [];
-        var warnings = [];
-        Object.keys(CHECK_LABELS).forEach(function(key){
-          var result = checkStatus(checks[key]);
-          if(result === 'flag') flagged.push(key);
-          else if(result === 'warn') warnings.push(key);
-        });
-
-        statusPill.classList.remove('verified','review','partial','caution');
-        statusPill.classList.add('show');
-        exceptionPanel.classList.remove('show');
-        statusPill.setAttribute('aria-expanded','false');
-
-        var rows = flagged.map(function(key){
-          var count = checkCount(checks[key]);
-          return '<div class="exception-row"><span class="ex-flag">FLAG</span><span class="ex-label">' + escapeHtml(CHECK_LABELS[key]) + (count ? ' (' + count + ')' : '') + ':</span><span class="ex-note">' + escapeHtml(FLAG_NOTES[key] || 'Flagged.') + '</span></div>';
-        }).concat(warnings.map(function(key){
-          var count = checkCount(checks[key]);
-          return '<div class="exception-row"><span class="ex-warn">NOTE</span><span class="ex-label">' + escapeHtml(CHECK_LABELS[key]) + (count ? ' (' + count + ')' : '') + ':</span><span class="ex-note">' + escapeHtml(WARN_NOTES[key] || 'Review if relevant.') + '</span></div>';
-        })).join('');
-
-        if(flagged.length){
-          statusPill.classList.add('review');
-          statusText.textContent = 'Review required — ' + flagged.length + ' flag' + (flagged.length === 1 ? '' : 's') + (warnings.length ? ', ' + warnings.length + ' note' + (warnings.length === 1 ? '' : 's') : '');
-          statusPill.setAttribute('data-clickable','true');
-          exceptionPanel.innerHTML = rows;
-        } else if(warnings.length){
-          statusPill.classList.add('caution');
-          statusText.textContent = 'Verified with ' + warnings.length + ' note' + (warnings.length === 1 ? '' : 's');
-          statusPill.setAttribute('data-clickable','true');
-          exceptionPanel.innerHTML = rows;
-        } else {
-          statusPill.classList.add('verified');
-          statusText.textContent = 'Verified';
-          statusPill.removeAttribute('data-clickable');
-          exceptionPanel.innerHTML = '';
-        }
-      }
-
-      statusPill.addEventListener('click', function(){
-        if(statusPill.getAttribute('data-clickable') !== 'true') return;
-        var expanded = exceptionPanel.classList.toggle('show');
-        statusPill.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      });
-
-      // ---------- evidence rendering: original page + OCR geometry ----------
-      function pct(v){ return (Number(v) || 0) * 100; }
-      function renderEvidence(ocrPages, pageImagesByPage){
-        var threshold = 0.90;
-        var suspiciousTotal = 0;
-        var html = (ocrPages || []).map(function(op){
-          var img = pageImagesByPage[op.page];
-          var blockBoxes = (op.blocks || []).map(function(b){
-            var q = b.bbox || {};
-            return '<g class="pagemap-region"><rect x="' + pct(q.x) + '" y="' + pct(q.y) + '" width="' + pct(q.w) + '" height="' + pct(q.h) + '" fill="none" stroke="#C77B4D" stroke-dasharray="1.2,1"></rect><text x="' + (pct(q.x)+0.5) + '" y="' + (pct(q.y)+2) + '" font-size="1.5">' + escapeHtml(b.id) + '</text></g>';
-          }).join('');
-          var fragmentBoxes = (op.fragments || []).map(function(f){
-            var q = f.bbox || {};
-            var markerOnly = /^[\s•\u2022\u25CF\u25AA\u25E6\-*|.·]+$/.test(f.text || '');
-            var suspicious = !markerOnly && Number.isFinite(Number(f.confidence)) && Number(f.confidence) < threshold;
-            if(suspicious) suspiciousTotal++;
-            var title = f.id + (Number.isFinite(Number(f.confidence)) ? ' · confidence ' + Number(f.confidence).toFixed(3) : '') + ' · ' + (f.text || '').replace(/\s+/g,' ').slice(0,120);
-            return '<g class="pagemap-region' + (suspicious ? ' suspicious' : '') + '"><title>' + escapeHtml(title) + '</title><rect x="' + pct(q.x) + '" y="' + pct(q.y) + '" width="' + pct(q.w) + '" height="' + pct(q.h) + '" fill="#9FA8B9" stroke="#534e4f"></rect><text x="' + (pct(q.x)+0.4) + '" y="' + (pct(q.y)+1.7) + '" font-size="1.25">' + escapeHtml(f.id) + '</text></g>';
-          }).join('');
-          return '<div class="pagemap-page"><p class="pagemap-label">Page ' + op.page + ' — OCR evidence</p><div class="pagemap-imgwrap">' +
-            (img ? '<img src="' + img.dataUrl + '" alt="Page ' + op.page + '">' : '') +
-            '<svg viewBox="0 0 100 100" preserveAspectRatio="none">' + blockBoxes + fragmentBoxes + '</svg></div></div>';
-        }).join('');
-        evidencePages.innerHTML = html + '<div class="pagemap-legend"><span><i style="background:#9FA8B9;"></i>OCR paragraph</span><span><i style="background:#C77B4D;"></i>Vision block (dashed)</span><span><i style="background:#c25c56;"></i>Below 0.90 confidence' + (suspiciousTotal ? ' (' + suspiciousTotal + ')' : '') + '</span></div>';
-      }
-
-      // ---------- run ----------
       var emptyState = document.getElementById('emptyState');
       var resultViews = document.getElementById('resultViews');
       var loadingBlock = document.getElementById('loadingBlock');
       var loadingText = document.getElementById('loadingText');
 
       function friendlyError(err){
-        if(location.protocol === 'file:'){
-          return 'This app needs the local dev server running \u2014 it can\u2019t call the API when index.html is opened directly from disk. From the ri-shell folder, run "node local-server.mjs" and open http://localhost:3000 instead.';
-        }
+        if(location.protocol === 'file:') return 'Run the local server first: node local-server.mjs, then open http://localhost:3000.';
         return err.message;
       }
 
       function runExtract(){
         var parsed = parsePageRange();
         if(!selectedFile || parsed.mode === 'invalid' || busy) return;
-
         busy = true;
         extractBtn.disabled = true;
         extractBtn.classList.add('pulled');
         leverStatus.className = 'lever-status busy';
-        leverStatus.textContent = 'Processing\u2026';
+        leverStatus.textContent = 'Reconstructing\u2026';
 
         emptyState.style.display = 'none';
         resultViews.style.display = 'block';
-        activateTab('evidence');
-        evidencePages.innerHTML = '';
+        activateTab('plain');
+        plainTextOutput.textContent = '';
+        renderedHtml.innerHTML = '';
+        codeOutput.textContent = '';
         loadingBlock.style.display = 'block';
-        loadingText.textContent = parsed.mode === 'image'
-          ? 'Reading image as page 1\u2026'
-          : parsed.mode === 'range'
-            ? ('Reading pages ' + parsed.from + '\u2013' + parsed.to + '\u2026')
-            : 'Reading the whole document\u2026';
-        statusPill.classList.remove('show');
-        exceptionPanel.classList.remove('show');
+        loadingText.textContent = parsed.mode === 'image' ? 'Giving GPT the image\u2026' : parsed.mode === 'range' ? ('Giving GPT pages ' + parsed.from + '\u2013' + parsed.to + '\u2026') : 'Rendering the document and giving GPT the pages\u2026';
 
         var formData = new FormData();
         formData.append('document', selectedFile);
-        if(parsed.mode === 'range'){
-          formData.append('pageFrom', parsed.from);
-          formData.append('pageTo', parsed.to);
-        }
+        if(parsed.mode === 'range'){ formData.append('pageFrom', parsed.from); formData.append('pageTo', parsed.to); }
         if(sectionTitle.value.trim()) formData.append('sectionTitle', sectionTitle.value.trim());
 
-        fetch('/api/extract', { method: 'POST', body: formData })
-          .then(function(res){
-            return res.json().then(function(data){
-              if(!res.ok) throw new Error(data.error || 'Something went wrong.');
-              return data;
-            });
-          })
+        fetch('/api/extract', { method:'POST', body:formData })
+          .then(function(res){ return res.json().then(function(data){ if(!res.ok) throw new Error(data.error || 'Something went wrong.'); return data; }); })
           .then(function(data){
             loadingBlock.style.display = 'none';
-
-            var pageImagesByPage = {};
-            (data.pageImages || []).forEach(function(p){ pageImagesByPage[p.page] = p; });
-            renderEvidence(data.ocr.pages, pageImagesByPage);
-
-            ocrJson.textContent = JSON.stringify(data.ocr, null, 2);
-            structureJson.textContent = JSON.stringify(data.structure, null, 2);
-            structuredJson.textContent = JSON.stringify(data.structured, null, 2);
-            renderedHtml.innerHTML = data.previewHtml || '<p class="empty-note">Nothing rendered.</p>';
-            renderStatus(data.checks || {});
+            plainTextOutput.textContent = data.result && data.result.plainText ? data.result.plainText : '';
+            renderedHtml.innerHTML = data.result && data.result.html ? data.result.html : '<p class="empty-note">Nothing rendered.</p>';
+            codeOutput.textContent = data.result && data.result.html ? data.result.html : '';
             enableTabs();
-
             extractBtn.classList.remove('pulled');
             leverStatus.className = 'lever-status complete';
             leverStatus.textContent = 'Complete';
-            setTimeout(function(){
-              busy = false;
-              updateReadiness();
-            }, 1600);
+            setTimeout(function(){ busy=false; updateReadiness(); }, 1200);
           })
           .catch(function(err){
             loadingBlock.style.display = 'none';
-            evidencePages.innerHTML = '<p class="empty-note">Failed: ' + escapeHtml(friendlyError(err)) + '</p>';
+            plainTextOutput.textContent = 'Failed: ' + friendlyError(err);
             extractBtn.classList.remove('pulled');
-            busy = false;
+            busy=false;
             updateReadiness();
           });
       }
 
       extractBtn.addEventListener('click', runExtract);
-
+      pageFrom.addEventListener('input', updateReadiness);
+      pageTo.addEventListener('input', updateReadiness);
       updateReadiness();
     })();
   </script>

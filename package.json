@@ -10,6 +10,6 @@
     "pngjs": "^7.0.0"
   },
   "scripts": {
-    "test": "node tests/encoder-regression.mjs"
+    "test": "node tests/smoke.mjs"
   }
 }

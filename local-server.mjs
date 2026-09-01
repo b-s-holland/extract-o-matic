@@ -87,17 +87,19 @@ async function handleExtract(req, res) {
     const contentType = req.headers['content-type'] || '';
     const { fields, files } = parseMultipart(buffer, contentType);
 
+    const upload = files.document || files.pdf; // pdf retained for older clients
     const result = await runPipeline({
       pageFrom: fields.pageFrom,
       pageTo: fields.pageTo,
       sectionTitle: fields.sectionTitle,
-      fileName: files.pdf ? files.pdf.filename : undefined,
-      pdfBuffer: files.pdf ? files.pdf.data : undefined
+      fileName: upload ? upload.filename : undefined,
+      mimeType: upload ? upload.contentType : undefined,
+      inputBuffer: upload ? upload.data : undefined
     });
 
     sendJson(res, 200, result);
   } catch (err) {
-    sendJson(res, 500, { error: err.message || 'Something went wrong processing that PDF.' });
+    sendJson(res, 500, { error: err.message || 'Something went wrong processing that document.' });
   }
 }
 
